@@ -1,8 +1,17 @@
+using Serilog;
 using Azure;
 using Azure.AI.TextAnalytics;
 using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Konfigurera Serilog för "Observability"
+Log.Logger = new LoggerConfiguration()
+    .WriteTo.Console()
+    .WriteTo.File("logs/sentiment-api-.txt", rollingInterval: RollingInterval.Day)
+    .CreateLogger();
+
+builder.Host.UseSerilog();
 
 // Konfigurera AI-inställningar från appsettings.json
 builder.Services.Configure<AiSettings>(builder.Configuration.GetSection("AiSettings"));
