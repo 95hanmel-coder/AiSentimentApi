@@ -1,43 +1,58 @@
 using Azure;
 using Azure.AI.TextAnalytics;
-using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Konfigurera AI-inställningar från appsettings.json
+builder.Services.Configure<AiSettings>(builder.Configuration.GetSection("AiSettings"));
+
+builder.Services.AddSingleton(sp =>
+{
+    var settings = sp.GetRequiredService<IOptions<AiSettings>>().Value;
+    var endpoint = new Uri(settings.Endpoint);
+    var credentials = new AzureKeyCredential(settings.Key);
+    return new TextAnalyticsClient(endpoint, credentials);
+});
+
 var app = builder.Build();
 
-app.UseDefaultFiles(); // Gör att index.html visas automatiskt
-app.UseStaticFiles();  // Tillåter servern att visa filer från wwwroot
+// Viktigt för gränssnittet:
+app.UseDefaultFiles();
+app.UseStaticFiles();
 
-// Hämta inställningar från konfigurationsfilen (appsettings.Development.json)
-var key = app.Configuration["AiSettings:Key"];
-var endpoint = app.Configuration["AiSettings:Endpoint"];
-
-// Validera att nycklar existerar innan start
-if (string.IsNullOrEmpty(key) || string.IsNullOrEmpty(endpoint))
+// Endpoint för analys
+app.MapPost("/analyze", async (TextRequest request, TextAnalyticsClient client, ILogger<Program> logger) =>
 {
-    throw new InvalidOperationException("Saknar AI-nycklar i appsettings.Development.json");
-}
+    try 
+    {
+        logger.LogInformation("Analyserar text: {Text}", request.Text);
+        var response = await client.AnalyzeSentimentAsync(request.Text);
+        var doc = response.Value;
 
-// Skapa klient för Azure AI
-var client = new TextAnalyticsClient(new Uri(endpoint), new AzureKeyCredential(key));
-
-app.MapGet("/", () => "AI-tjänsten är redo.");
-
-app.MapPost("/analyze", async ([FromBody] TextRequest request) =>
-{
-    // Skickar text till Azure för analys
-    DocumentSentiment result = await client.AnalyzeSentimentAsync(request.Text);
-
-    // Returnerar känsla (Sentiment) och säkerhetsnivå (Confidence)
-    return Results.Ok(new 
-    { 
-        OriginalText = request.Text, 
-        Sentiment = result.Sentiment.ToString(), 
-        Confidence = result.ConfidenceScores 
-    });
+        return Results.Ok(new
+        {
+            OriginalText = request.Text,
+            Sentiment = doc.Sentiment.ToString(),
+            Confidence = new {
+                Positive = doc.ConfidenceScores.Positive,
+                Neutral = doc.ConfidenceScores.Neutral,
+                Negative = doc.ConfidenceScores.Negative
+            }
+        });
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "Ett fel uppstod vid AI-analys");
+        return Results.Problem("Kunde inte analysera texten.");
+    }
 });
 
 app.Run();
 
-// DTO för inkommande data
-record TextRequest(string Text);
+// Modeller
+public record TextRequest(string Text);
+public class AiSettings {
+    public string Key { get; set; } = string.Empty;
+    public string Endpoint { get; set; } = string.Empty;
+}
