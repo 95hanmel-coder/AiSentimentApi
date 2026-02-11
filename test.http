@@ -1,0 +1,6 @@
+POST http://localhost:5212/analyze
+Content-Type: application/json
+
+{
+    "text": "Jag är fruktansvärt besviken på servicen, det här är uselt!"
+}
