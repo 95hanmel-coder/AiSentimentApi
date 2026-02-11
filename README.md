@@ -24,4 +24,4 @@ För att möta krav på säkerhetsprövning och god molnhygien:
 1. **Infrastruktur:** Provisionera resurser med medföljande Bicep-fil:
    `az deployment group create --resource-group <din-rg> --template-file Infrastructure/main.bicep`
 2. **Konfiguration:** Lägg till Azure-uppgifter i `appsettings.Development.json`.
-3. **Kör appen:** `dotnet run`
+3. **Kör appen:** `dotnet run`git add README.md
